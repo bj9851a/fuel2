@@ -1,7 +1,10 @@
 //! Optimisations related to mem_copy.
 //! - replace a `store` directly from a `load` with a `mem_copy_val`.
 
-use rustc_hash::{FxHashMap, FxHashSet};
+use std::hash::BuildHasherDefault;
+
+use indexmap::{IndexMap, IndexSet};
+use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
 
 use crate::{
     get_symbol, get_symbols, memory_utils, AnalysisResults, Block, Context, EscapedSymbols,
@@ -260,11 +263,19 @@ fn local_copy_prop(
     // Currently (as we scan a block) available `memcpy`s.
     let mut available_copies: FxHashSet<Value>;
     // Map a symbol to the available `memcpy`s of which its a source.
-    let mut src_to_copies: FxHashMap<Symbol, FxHashSet<Value>>;
+    let mut src_to_copies: IndexMap<
+        Symbol,
+        IndexSet<Value, BuildHasherDefault<FxHasher>>,
+        BuildHasherDefault<FxHasher>,
+    >;
     // Map a symbol to the available `memcpy`s of which its a destination.
     // (multiple memcpys for the same destination may be available when
     // they are partial / field writes, and don't alias).
-    let mut dest_to_copies: FxHashMap<Symbol, FxHashSet<Value>>;
+    let mut dest_to_copies: IndexMap<
+        Symbol,
+        IndexSet<Value, BuildHasherDefault<FxHasher>>,
+        BuildHasherDefault<FxHasher>,
+    >;
 
     // If a value (symbol) is found to be defined, remove it from our tracking.
     fn kill_defined_symbol(
@@ -272,8 +283,16 @@ fn local_copy_prop(
         value: Value,
         len: u64,
         available_copies: &mut FxHashSet<Value>,
-        src_to_copies: &mut FxHashMap<Symbol, FxHashSet<Value>>,
-        dest_to_copies: &mut FxHashMap<Symbol, FxHashSet<Value>>,
+        src_to_copies: &mut IndexMap<
+            Symbol,
+            IndexSet<Value, BuildHasherDefault<FxHasher>>,
+            BuildHasherDefault<FxHasher>,
+        >,
+        dest_to_copies: &mut IndexMap<
+            Symbol,
+            IndexSet<Value, BuildHasherDefault<FxHasher>>,
+            BuildHasherDefault<FxHasher>,
+        >,
     ) {
         let syms = get_symbols(context, value);
         for sym in syms {
@@ -328,8 +347,16 @@ fn local_copy_prop(
         dst_val_ptr: Value,
         src_val_ptr: Value,
         available_copies: &mut FxHashSet<Value>,
-        src_to_copies: &mut FxHashMap<Symbol, FxHashSet<Value>>,
-        dest_to_copies: &mut FxHashMap<Symbol, FxHashSet<Value>>,
+        src_to_copies: &mut IndexMap<
+            Symbol,
+            IndexSet<Value, BuildHasherDefault<FxHasher>>,
+            BuildHasherDefault<FxHasher>,
+        >,
+        dest_to_copies: &mut IndexMap<
+            Symbol,
+            IndexSet<Value, BuildHasherDefault<FxHasher>>,
+            BuildHasherDefault<FxHasher>,
+        >,
     ) {
         if let (Some(dst_sym), Some(src_sym)) = (
             get_symbol(context, dst_val_ptr),
@@ -397,7 +424,11 @@ fn local_copy_prop(
         escaped_symbols: &EscapedSymbols,
         inst: Value,
         src_val_ptr: Value,
-        dest_to_copies: &FxHashMap<Symbol, FxHashSet<Value>>,
+        dest_to_copies: &IndexMap<
+            Symbol,
+            IndexSet<Value, BuildHasherDefault<FxHasher>>,
+            BuildHasherDefault<FxHasher>,
+        >,
         replacements: &mut FxHashMap<Value, Replacement>,
     ) -> bool {
         // For every `memcpy` that src_val_ptr is a destination of,
@@ -478,8 +509,8 @@ fn local_copy_prop(
         // marked this as a TODO for now (#4600).
         loop {
             available_copies = FxHashSet::default();
-            src_to_copies = FxHashMap::default();
-            dest_to_copies = FxHashMap::default();
+            src_to_copies = IndexMap::default();
+            dest_to_copies = IndexMap::default();
 
             // Replace the load/memcpy source pointer with something else.
             let mut replacements = FxHashMap::default();
@@ -488,8 +519,16 @@ fn local_copy_prop(
                 context: &Context,
                 args: &Vec<Value>,
                 available_copies: &mut FxHashSet<Value>,
-                src_to_copies: &mut FxHashMap<Symbol, FxHashSet<Value>>,
-                dest_to_copies: &mut FxHashMap<Symbol, FxHashSet<Value>>,
+                src_to_copies: &mut IndexMap<
+                    Symbol,
+                    IndexSet<Value, BuildHasherDefault<FxHasher>>,
+                    BuildHasherDefault<FxHasher>,
+                >,
+                dest_to_copies: &mut IndexMap<
+                    Symbol,
+                    IndexSet<Value, BuildHasherDefault<FxHasher>>,
+                    BuildHasherDefault<FxHasher>,
+                >,
             ) {
                 for arg in args {
                     let max_size = get_symbols(context, *arg)

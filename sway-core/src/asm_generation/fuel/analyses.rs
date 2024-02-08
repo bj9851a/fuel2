@@ -1,7 +1,11 @@
-use std::collections::{BTreeSet, HashMap};
+use std::{
+    collections::{BTreeSet, HashMap},
+    hash::BuildHasherDefault,
+};
 
 use either::Either;
-use rustc_hash::FxHashSet;
+use indexmap::IndexSet;
+use rustc_hash::FxHasher;
 
 use crate::asm_lang::{ControlFlowOp, Label, Op, VirtualRegister};
 
@@ -53,7 +57,8 @@ pub(crate) fn liveness_analysis(
 ) -> Vec<BTreeSet<VirtualRegister>> {
     // Vectors representing maps that will represent the live_in and live_out tables. Each entry
     // corresponds to an instruction in `ops`.
-    let mut live_in: Vec<FxHashSet<VirtualRegister>> = vec![FxHashSet::default(); ops.len()];
+    let mut live_in: Vec<IndexSet<VirtualRegister, BuildHasherDefault<FxHasher>>> =
+        vec![IndexSet::default(); ops.len()];
     let mut live_out: Vec<BTreeSet<VirtualRegister>> = vec![BTreeSet::default(); ops.len()];
     let mut label_to_index: HashMap<Label, usize> = HashMap::new();
 

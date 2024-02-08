@@ -7,13 +7,17 @@ use crate::{
 };
 
 use either::Either;
+use indexmap::{IndexMap, IndexSet};
 use petgraph::{
     stable_graph::NodeIndex,
     visit::EdgeRef,
     Direction::{Incoming, Outgoing},
 };
-use rustc_hash::{FxHashMap, FxHashSet};
-use std::collections::{hash_map, BTreeSet, HashMap};
+use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
+use std::{
+    collections::{hash_map, BTreeSet, HashMap},
+    hash::BuildHasherDefault,
+};
 use sway_error::error::CompileError;
 use sway_ir::size_bytes_round_up_to_word_alignment;
 use sway_types::Span;
@@ -201,7 +205,7 @@ pub(crate) fn coalesce_registers(
 ) -> (Vec<Op>, Vec<BTreeSet<VirtualRegister>>) {
     // A map from the virtual registers that are removed to the virtual registers that they are
     // replaced with during the coalescing process.
-    let mut reg_to_reg_map: HashMap<&VirtualRegister, &VirtualRegister> = HashMap::new();
+    let mut reg_to_reg_map = IndexMap::<&VirtualRegister, &VirtualRegister>::new();
 
     // To hold the final *reduced* list of ops
     let mut reduced_ops: Vec<Op> = Vec::with_capacity(ops.len());
@@ -237,10 +241,10 @@ pub(crate) fn coalesce_registers(
 
                         let r1_neighbours = interference_graph
                             .neighbors_undirected(*ix1)
-                            .collect::<FxHashSet<_>>();
+                            .collect::<IndexSet<_, BuildHasherDefault<FxHasher>>>();
                         let r2_neighbours = interference_graph
                             .neighbors_undirected(*ix2)
-                            .collect::<FxHashSet<_>>();
+                            .collect::<IndexSet<_, BuildHasherDefault<FxHasher>>>();
 
                         // Using either of the two safety conditions below, it's guaranteed
                         // that we aren't turning a k-colourable graph into one that's not,
@@ -315,7 +319,7 @@ pub(crate) fn coalesce_registers(
 
     // Create a *final* reg-to-reg map that We keep looking for mappings within reg_to_reg_map
     // until we find a register that doesn't map to any other.
-    let mut final_reg_to_reg_map: HashMap<&VirtualRegister, &VirtualRegister> = HashMap::new();
+    let mut final_reg_to_reg_map = IndexMap::<&VirtualRegister, &VirtualRegister>::new();
     for reg in reg_to_reg_map.keys() {
         let mut temp = reg;
         while let Some(t) = reg_to_reg_map.get(temp) {

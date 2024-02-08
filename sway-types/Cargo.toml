@@ -22,3 +22,6 @@ thiserror = "1"
 
 [features]
 no-span-debug = []
+
+[lints.clippy]
+iter_over_hash_type = "deny"

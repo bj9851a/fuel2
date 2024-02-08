@@ -1,4 +1,4 @@
-use std::collections::hash_map::Entry;
+use std::hash::BuildHasherDefault;
 
 /// Constant value demotion.
 ///
@@ -12,7 +12,8 @@ use crate::{
     ScopedPass, Value,
 };
 
-use rustc_hash::FxHashMap;
+use indexmap::IndexMap;
+use rustc_hash::{FxHashMap, FxHasher};
 
 pub const CONSTDEMOTION_NAME: &str = "constdemotion";
 
@@ -31,7 +32,11 @@ pub fn const_demotion(
     function: Function,
 ) -> Result<bool, IrError> {
     // Find all candidate constant values and their wrapped constants.
-    let mut candidate_values: FxHashMap<Block, Vec<(Value, Constant)>> = FxHashMap::default();
+    let mut candidate_values: IndexMap<
+        Block,
+        Vec<(Value, Constant)>,
+        BuildHasherDefault<FxHasher>,
+    > = IndexMap::default();
 
     for (block, inst) in function.instruction_iter(context) {
         let operands = inst.get_instruction(context).unwrap().op.get_operands();
@@ -40,10 +45,10 @@ pub fn const_demotion(
                 if super::target_fuel::is_demotable_type(context, &c.ty) {
                     let dem = (*val, c.clone());
                     match candidate_values.entry(block) {
-                        Entry::Occupied(mut occ) => {
+                        indexmap::map::Entry::Occupied(mut occ) => {
                             occ.get_mut().push(dem);
                         }
-                        Entry::Vacant(vac) => {
+                        indexmap::map::Entry::Vacant(vac) => {
                             vac.insert(vec![dem]);
                         }
                     }
